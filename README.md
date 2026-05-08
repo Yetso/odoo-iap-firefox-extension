@@ -2,7 +2,7 @@
 
 ## Overview
 
-This Chrome extension adds a popup on Odoo instances to ease the switching of
+This firefox extension adds a popup on Odoo instances to ease the switching of
 config parameters and IAP accounts.
 
 ## Installation

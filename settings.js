@@ -28,10 +28,9 @@ window.addEventListener('DOMContentLoaded', () => {
         renderSettings();
     }
 
-    function saveSettings() {
-        chrome.storage.sync.set({ settings: settings }, () => {
-            console.log('Settings saved to chrome.storage.sync');
-        });
+    async function saveSettings() {
+        await browser.storage.sync.set({ settings: settings });
+        console.log('Settings saved to browser.storage.sync');
     }
 
     function onInput(settingKey, mappingEl, statusMessageOkEl, statusMessageNokEl) {
@@ -48,15 +47,14 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function setup(){
-        chrome.storage.sync.get('settings', (result) => {
-            if (result.settings) {
-                settings = result.settings;
-            } else {
-                settings = DEFAULT_SETTINGS;
-            }
-            renderSettings();
-        });
+    async function setup(){
+        const result = await browser.storage.sync.get('settings');
+        if (result.settings) {
+            settings = result.settings;
+        } else {
+            settings = DEFAULT_SETTINGS;
+        }
+        renderSettings();
 
         resetButtonEl.addEventListener('click', () => {
             resetSettings();

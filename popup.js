@@ -6,14 +6,13 @@ window.addEventListener('DOMContentLoaded', async () => {
      * Execute a function with its arguments in the current tab (instead of in the popup)
      */
     async function executeFunctionInCurrentTab(func, args){
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        const response = await chrome.scripting.executeScript({
+        const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+        const response = await browser.scripting.executeScript({
             target: { tabId: tab.id },
-            function: func,
+            func: func,
             args: args
         });
-        return response[0].result;
-    }
+        return response[0].result;}
 
     /*
      * Add rpcCall method to the current tab so that it can be called by other methods
@@ -235,22 +234,20 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     async function setup(){
         await executeFunctionInCurrentTab(addRpcCallMethod, []);
-
-        chrome.storage.sync.get('settings', (result) => {
-            if (result.settings) {
-                settings = result.settings;
-            } else {
-                settings = DEFAULT_SETTINGS;
-            }
-            renderConfigParams();
-            renderIapAccounts();
-        });
+        const result = await browser.storage.sync.get('settings');
+        if (result.settings) {
+            settings = result.settings;
+        } else {
+            settings = DEFAULT_SETTINGS;
+        }
+        renderConfigParams();
+        renderIapAccounts();
 
         document.querySelector('#settings-button').addEventListener('click', function() {
-            if (chrome.runtime.openOptionsPage) {
-                chrome.runtime.openOptionsPage();
+            if (browser.runtime.openOptionsPage) {
+                browser.runtime.openOptionsPage();
             } else {
-                window.open(chrome.runtime.getURL('settings.html'));
+                window.open(browser.runtime.getURL('settings.html'));
             }
         });
     }
