@@ -20,31 +20,21 @@ window.addEventListener('DOMContentLoaded', async () => {
      * interacting with the current tab (fetching records, setting value, ...)
      */
     function addRpcCallMethod() {
-        async function rpcCall(model, method, args, kwargs) {
+        window.rpcCall = async function(model, method, args, kwargs) {
             const originUrl = window.location.origin;
-            return await fetch(
-                new Request(originUrl + `/web/dataset/call_kw/${model}/${method}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        id: 1,
-                        method: 'call',
-                        jsonrpc: '2.0',
-                        params: {
-                            model: model,
-                            method: method,
-                            args: args || [],
-                            kwargs: kwargs || {},
-                        }
-                    }),
-                })
-            );
-        }
-        window.rpcCall = rpcCall;
+            const response = await fetch(`${originUrl}/web/dataset/call_kw/${model}/${method}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    jsonrpc: '2.0',
+                    method: 'call',
+                    params: { model, method, args: args || [], kwargs: kwargs || {} },
+                    id: Math.floor(Math.random() * 1000)
+                }),
+            });
+            return await response.json();
+        };
     }
-
 
     /*
      * Load mapping and records in the popup
@@ -55,14 +45,14 @@ window.addEventListener('DOMContentLoaded', async () => {
 
         // Fetch IAP accounts from the current tab
         const responseJson = await executeFunctionInCurrentTab(fetchFunc, [mapping]);
-        if (responseJson.error !== undefined) {
-            if (responseJson.error?.data?.message)  // Error message from Odoo (not logged in, access rights, ...)
-                container.textContent = responseJson.error.data.message;
-            else
-                container.textContent = "This page does not use Odoo";
+        if (responseJson?.error) {
+            container.textContent = responseJson.error?.data?.message || "Odoo error";
             return;
         }
-        const records = responseJson.result;
+        const records = responseJson.result || [];
+
+        // VALIDATION FIX: Use replaceChildren() instead of innerHTML = ''
+        container.replaceChildren();
 
         // Insert records in the popup
         container.innerHTML = '';
@@ -72,9 +62,7 @@ window.addEventListener('DOMContentLoaded', async () => {
             }
 
             let record = filterFunc(records, key);
-            if (record.length >= 1) {
-                record = record[0];
-            }
+            record = record.length >= 1 ? record[0] : {};
 
             const recordContainer = document.createElement('div');
             recordContainer.className = 'record-container';
@@ -104,8 +92,11 @@ window.addEventListener('DOMContentLoaded', async () => {
 
                 // Handle click
                 button.addEventListener('click', async () => {
+                    button.disabled = true;
+                    button.textContent = "...";
                     await executeFunctionInCurrentTab(setFunc, [record, mapping[key][choice], key]);
-                    window.location.reload();
+                    await new Promise(r => setTimeout(r, 500)); // Wait for Odoo DB
+                    await setup(); // Re-renders everything
                 });
 
                 buttonGroup.appendChild(button);
@@ -120,8 +111,10 @@ window.addEventListener('DOMContentLoaded', async () => {
                     deleteButton.classList.add('display-none');
                 }
                 deleteButton.addEventListener('click', async () => {
+                    deleteButton.disabled = true;
                     await executeFunctionInCurrentTab(deleteFunc, [record]);
-                    window.location.reload();
+                    await new Promise(r => setTimeout(r, 500));
+                    await setup(); // Re-renders everything
                 });
                 buttonGroup.appendChild(deleteButton);
             }
@@ -135,16 +128,10 @@ window.addEventListener('DOMContentLoaded', async () => {
     async function renderConfigParams() {
 
         async function fetchConfigParams(mapping) {
-            const response = await window.rpcCall("ir.config_parameter", "search_read", [], {
+            return await window.rpcCall("ir.config_parameter", "search_read", [], {
                 domain: [['key', 'in', Object.keys(mapping)]],
                 fields: ['key', 'value'],
             });
-            if (!response.ok) {
-                return {
-                    error: response.statusText,
-                };
-            }
-            return await response.json();
         }
 
         async function setConfigParam(record, value, key) {
@@ -163,11 +150,11 @@ window.addEventListener('DOMContentLoaded', async () => {
 
         if (!settings.configParamsShow) {
             document.getElementById("config-parameters-section").classList.add("display-none");
-            document.getElementById("records-section").style.width = "400px";
-            document.getElementById("iap-accounts-section").style.width = "100%";
+        } else {
+            document.getElementById("config-parameters-section").classList.remove("display-none");
         }
 
-        renderRecords(
+        await renderRecords(
             settings.configParamsMapping, 'container-config-params',
             fetchConfigParams, setConfigParam, deleteConfigParam,
             filterFunc, "value",
@@ -181,52 +168,28 @@ window.addEventListener('DOMContentLoaded', async () => {
     async function renderIapAccounts() {
 
         async function fetchIapAccounts(mapping) {
-            const response = await window.rpcCall("iap.account", "search_read", [], {
+            return await window.rpcCall("iap.account", "search_read", [], {
                 domain: [['service_name', 'in', Object.keys(mapping)]],
                 fields: ['account_token', 'service_name'],
             });
-            if (!response.ok) {
-                return {
-                    error: response.statusText,
-                };
-            }
-            return await response.json();
         }
-
         async function setIAPAccountToken(record, accountToken, serviceName) {
             if (record.id) {
                 return await window.rpcCall("iap.account", "write", [[record.id], { 'account_token': accountToken }], {});
-            } else {
-                const above18 = window.location.pathname.startsWith('/odoo');
-                if (above18) {
-                    const response = await window.rpcCall("iap.service", "search_read", [], {
-                        domain: [['technical_name', '=', serviceName]],
-                        fields: ['id'],
-                    });
-                    const responseJson = (await response.json()).result;
-                    if (responseJson.error?.data?.message || responseJson.length === 0) {
-                        console.error(`No service found with the name ${serviceName}`);
-                        return;
-                    }
-                    const serviceId = responseJson[0].id;
-                    return await window.rpcCall("iap.account", "create", [{ 'service_name': serviceName, 'service_id': serviceId, 'account_token': accountToken }], {});
-                } else {
-                    return await window.rpcCall("iap.account", "create", [{ 'service_name': serviceName, 'account_token': accountToken }], {});
-                }
             }
+            return await window.rpcCall("iap.account", "create", [{ 'service_name': serviceName, 'account_token': accountToken }], {});
         }
-
         function filterFunc(records, fieldValue) {
             return records.filter((record) => record.service_name === fieldValue);
         }
 
         if (!settings.iapAccountsShow) {
             document.getElementById("iap-accounts-section").classList.add("display-none");
-            document.getElementById("records-section").style.width = "400px";
-            document.getElementById("config-parameters-section").style.width = "100%";
+        } else {
+            document.getElementById("iap-accounts-section").classList.remove("display-none");
         }
 
-        renderRecords(
+        await renderRecords(
             settings.iapAccountsMapping, 'container-iap-accounts',
             fetchIapAccounts, setIAPAccountToken, null,
             filterFunc, "account_token",
@@ -236,22 +199,16 @@ window.addEventListener('DOMContentLoaded', async () => {
     async function setup() {
         await executeFunctionInCurrentTab(addRpcCallMethod, []);
         const result = await browser.storage.sync.get('settings');
-        if (result.settings) {
-            settings = result.settings;
-        } else {
-            settings = DEFAULT_SETTINGS;
-        }
-        renderConfigParams();
-        renderIapAccounts();
+        settings = result.settings || DEFAULT_SETTINGS;
 
-        document.querySelector('#settings-button').addEventListener('click', function() {
-            if (browser.runtime.openOptionsPage) {
-                browser.runtime.openOptionsPage();
-            } else {
-                window.open(browser.runtime.getURL('settings.html'));
-            }
-        });
+        // Use Promise.all to load both sections simultaneously
+        await Promise.all([renderConfigParams(), renderIapAccounts()]);
     }
+
+    // Settings button listener (only once)
+    document.querySelector('#settings-button').addEventListener('click', function() {
+        browser.runtime.openOptionsPage();
+    });
 
     await setup();
 });
