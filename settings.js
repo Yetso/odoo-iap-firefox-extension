@@ -47,7 +47,7 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function setup(){
+    async function setup() {
         const result = await browser.storage.sync.get('settings');
         if (result.settings) {
             settings = result.settings;

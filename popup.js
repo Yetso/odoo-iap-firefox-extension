@@ -5,21 +5,22 @@ window.addEventListener('DOMContentLoaded', async () => {
     /*
      * Execute a function with its arguments in the current tab (instead of in the popup)
      */
-    async function executeFunctionInCurrentTab(func, args){
+    async function executeFunctionInCurrentTab(func, args) {
         const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
         const response = await browser.scripting.executeScript({
             target: { tabId: tab.id },
             func: func,
             args: args
         });
-        return response[0].result;}
+        return response[0].result;
+    }
 
     /*
      * Add rpcCall method to the current tab so that it can be called by other methods
      * interacting with the current tab (fetching records, setting value, ...)
      */
-    function addRpcCallMethod(){
-        async function rpcCall(model, method, args, kwargs){
+    function addRpcCallMethod() {
+        async function rpcCall(model, method, args, kwargs) {
             const originUrl = window.location.origin;
             return await fetch(
                 new Request(originUrl + `/web/dataset/call_kw/${model}/${method}`, {
@@ -48,7 +49,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     /*
      * Load mapping and records in the popup
      */
-    async function renderRecords(mapping, containerId, fetchFunc, setFunc, deleteFunc, filterFunc, valueFieldName){
+    async function renderRecords(mapping, containerId, fetchFunc, setFunc, deleteFunc, filterFunc, valueFieldName) {
         // Get container
         const container = document.getElementById(containerId);
 
@@ -66,12 +67,12 @@ window.addEventListener('DOMContentLoaded', async () => {
         // Insert records in the popup
         container.innerHTML = '';
         for (const [key, choices] of Object.entries(mapping)) {
-            if (!choices.show){
+            if (!choices.show) {
                 continue;
             }
 
             let record = filterFunc(records, key);
-            if (record.length >= 1){
+            if (record.length >= 1) {
                 record = record[0];
             }
 
@@ -92,7 +93,7 @@ window.addEventListener('DOMContentLoaded', async () => {
             buttonGroup.className = 'button-group';
             recordContainer.appendChild(buttonGroup);
 
-            for (const choice of Object.keys(choices).filter(value => value !== 'show')){
+            for (const choice of Object.keys(choices).filter(value => value !== 'show')) {
                 const button = document.createElement('button');
                 button.textContent = choice;
 
@@ -131,7 +132,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     /*
      * Load Config Params in the popup
      */
-    async function renderConfigParams(){
+    async function renderConfigParams() {
 
         async function fetchConfigParams(mapping) {
             const response = await window.rpcCall("ir.config_parameter", "search_read", [], {
@@ -148,7 +149,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
         async function setConfigParam(record, value, key) {
             const method = record.id ? "write" : "create";
-            const args = record.id ? [[record.id], {'value': value}] : [{'key': key, 'value': value}];
+            const args = record.id ? [[record.id], { 'value': value }] : [{ 'key': key, 'value': value }];
             return await window.rpcCall("ir.config_parameter", method, args, {});
         }
 
@@ -177,7 +178,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     /*
      * Load IAP Accounts in the popup
      */
-    async function renderIapAccounts(){
+    async function renderIapAccounts() {
 
         async function fetchIapAccounts(mapping) {
             const response = await window.rpcCall("iap.account", "search_read", [], {
@@ -194,23 +195,23 @@ window.addEventListener('DOMContentLoaded', async () => {
 
         async function setIAPAccountToken(record, accountToken, serviceName) {
             if (record.id) {
-                return await window.rpcCall("iap.account", "write", [[record.id], {'account_token': accountToken}], {});
+                return await window.rpcCall("iap.account", "write", [[record.id], { 'account_token': accountToken }], {});
             } else {
                 const above18 = window.location.pathname.startsWith('/odoo');
-                if (above18){
+                if (above18) {
                     const response = await window.rpcCall("iap.service", "search_read", [], {
                         domain: [['technical_name', '=', serviceName]],
                         fields: ['id'],
                     });
                     const responseJson = (await response.json()).result;
-                    if (responseJson.error?.data?.message || responseJson.length === 0){
+                    if (responseJson.error?.data?.message || responseJson.length === 0) {
                         console.error(`No service found with the name ${serviceName}`);
                         return;
                     }
                     const serviceId = responseJson[0].id;
-                    return await window.rpcCall("iap.account", "create", [{'service_name': serviceName, 'service_id': serviceId, 'account_token': accountToken}], {});
+                    return await window.rpcCall("iap.account", "create", [{ 'service_name': serviceName, 'service_id': serviceId, 'account_token': accountToken }], {});
                 } else {
-                    return await window.rpcCall("iap.account", "create", [{'service_name': serviceName, 'account_token': accountToken}], {});
+                    return await window.rpcCall("iap.account", "create", [{ 'service_name': serviceName, 'account_token': accountToken }], {});
                 }
             }
         }
@@ -232,7 +233,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         );
     }
 
-    async function setup(){
+    async function setup() {
         await executeFunctionInCurrentTab(addRpcCallMethod, []);
         const result = await browser.storage.sync.get('settings');
         if (result.settings) {
