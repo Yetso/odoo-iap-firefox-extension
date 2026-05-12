@@ -1,7 +1,7 @@
 {
     "name": "IAP",
     "description": "Utils for Odoo IAP",
-    "version": "1.1",
+    "version": "1.1.1",
     "manifest_version": 3,
     "browser_specific_settings": {
         "gecko": {

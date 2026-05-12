@@ -29,6 +29,12 @@ const DEFAULT_SETTINGS = {
             'test': 'https://iap-services-test.odoo.com',
             'local': 'http://localhost:8469',
         },
+        "iap_vies.endpoint": {
+            "show": true,
+            "prod": "https://vies.api.odoo.com",
+            "test": "https://vies.test.odoo.com",
+            "local": "http://localhost:8469"
+        },
         'database.uuid': {
             'show': true,
             'skip_sub': 'skip_check_subscription',
