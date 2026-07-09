@@ -1,0 +1,7 @@
+{
+  "version": { "license": "MIT" },
+  "categories": { "firefox": ["other"] },
+  "summary": {
+      "en-US": "Extension to modify sys param on Odoo development"
+  }
+}
