@@ -94,6 +94,16 @@ window.addEventListener('DOMContentLoaded', async () => {
                 button.addEventListener('click', async () => {
                     button.disabled = true;
                     button.textContent = "...";
+                    if (key === 'database.uuid') {
+                        const oldRecord = records.find(r => r.key === 'database.uuid.old');
+                        const currentValue = record[valueFieldName];
+                        const newValue = mapping[key][choice];
+
+                        // If the current DB has a real UUID, save it to database.uuid.old
+                        if (currentValue && currentValue !== newValue && currentValue !== 'skip_check_subscription') {
+                            await executeFunctionInCurrentTab(setFunc, [oldRecord || {}, currentValue, 'database.uuid.old']);
+                        }
+                    }
                     await executeFunctionInCurrentTab(setFunc, [record, mapping[key][choice], key]);
                     await new Promise(r => setTimeout(r, 500)); // Wait for Odoo DB
                     await setup(); // Re-renders everything
@@ -102,8 +112,27 @@ window.addEventListener('DOMContentLoaded', async () => {
                 buttonGroup.appendChild(button);
             }
 
-            // Delete button
-            if (deleteFunc) {
+            if (key === 'database.uuid') {
+                const oldRecord = records.find(r => r.key === 'database.uuid.old');
+                if (oldRecord && oldRecord[valueFieldName]) {
+                    currentValueElem.textContent += ` (Previous: ${oldRecord[valueFieldName]})`;
+
+                    const restoreBtn = document.createElement('button');
+                    restoreBtn.textContent = 'Restore';
+                    restoreBtn.classList.add('restore-button');
+                    restoreBtn.addEventListener('click', async () => {
+                        restoreBtn.disabled = true;
+                        restoreBtn.textContent = "...";
+                        await executeFunctionInCurrentTab(setFunc, [record, oldRecord[valueFieldName], key]);
+                        if (deleteFunc) {
+                            await executeFunctionInCurrentTab(deleteFunc, [oldRecord]);
+                        }
+                        await new Promise(r => setTimeout(r, 500));
+                        await setup();
+                    });
+                    buttonGroup.appendChild(restoreBtn);
+                }
+            } else if (deleteFunc) {
                 const deleteButton = document.createElement('button');
                 deleteButton.textContent = "Delete";
                 deleteButton.className = 'delete-button';
@@ -112,6 +141,7 @@ window.addEventListener('DOMContentLoaded', async () => {
                 }
                 deleteButton.addEventListener('click', async () => {
                     deleteButton.disabled = true;
+                    deleteButton.textContent = "...";
                     await executeFunctionInCurrentTab(deleteFunc, [record]);
                     await new Promise(r => setTimeout(r, 500));
                     await setup(); // Re-renders everything
@@ -128,8 +158,12 @@ window.addEventListener('DOMContentLoaded', async () => {
     async function renderConfigParams() {
 
         async function fetchConfigParams(mapping) {
+            const keysToFetch = Object.keys(mapping);
+            if (keysToFetch.includes('database.uuid')) {
+                keysToFetch.push('database.uuid.old');
+            }
             return await window.rpcCall("ir.config_parameter", "search_read", [], {
-                domain: [['key', 'in', Object.keys(mapping)]],
+                domain: [['key', 'in', keysToFetch]],
                 fields: ['key', 'value'],
             });
         }
